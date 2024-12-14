@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>贪吃蛇、推箱子与飞机大战游戏</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            overflow: hidden; /* 隐藏滚动条 */
+        }
+        #gameCanvas, #pushBoxCanvas, #planeCanvas {
+            border: 1px solid #000;
+            background-color: black; /* 设置背景为黑色 */
+            display: none; /* 默认隐藏 */
+        }
+        #score, #pushBoxScore, #planeScore {
+            text-align: center;
+            font-size: 24px;
+            margin-top: 10px;
+            color: white; /* 设置分数文字颜色为白色 */
+        }
+        #title {
+            font-size: 32px;
+            margin-bottom: 20px;
+            color: white; /* 设置标题文字颜色为白色 */
+            white-space: nowrap; /* 防止换行 */
+            overflow: hidden; /* 隐藏超出部分 */
+            animation: scroll 10s linear infinite; /* 设置滚动动画 */
+        }
+        #ipInfo, #author {
+            margin-top: 10px;
+            color: black; /* 设置IP信息颜色 */
+            font-size: 18px;
+        }
+        #gameSelector {
+            margin-bottom: 20px;
+        }
+
+        @keyframes scroll {
+            0% {
+                transform: translateX(100%); /* 从右侧开始 */
+            }
+            100% {
+                transform: translateX(-100%); /* 滚动到左侧 */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="title">Tom游戏网络</div>
+    <div id="gameSelector">
+        <label for="gameSelect">选择游戏:</label>
+        <select id="gameSelect">
+            <option value="snake">贪吃蛇</option>
+            <option value="pushBox">推箱子</option>
+            <option value="plane">飞机大战</option>
+        </select>
+        <button id="startGame">开始游戏</button>
+    </div>
+    <div>
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div id="score">分数: 0</div>
+        <div id="ipInfo">加载中...</div> <!-- 显示IP信息 -->
+        <div id="author">作者: 你的名字</div> <!-- 显示作者信息 -->
+    </div>
+
+    <div>
+        <canvas id="pushBoxCanvas" width="400" height="400"></canvas>
+        <div id="pushBoxScore">推箱子分数: 0</div>
+    </div>
+
+    <div>
+        <canvas id="planeCanvas" width="400" height="400"></canvas>
+        <div id="planeScore">飞机大战分数: 0</div>
+    </div>
+
+    <script>
+        // 获取用户的IP地址和地理位置信息
+        fetch('https://api.ipify.org?format=json')
+            .then(response => response.json())
+            .then(data => {
+                const ip = data.ip;
+                return fetch(`http://ip-api.com/json/${ip}`);
+            })
+            .then(response => response.json())
+            .then(data => {
+                const locationInfo = `你的IP地址: ${data.query}, 省: ${data.regionName}, 市: ${data.city}`;
+                document.getElementById('ipInfo').innerText = locationInfo;
+            })
+            .catch(error => {
+                document.getElementById('ipInfo').innerText = '无法获取位置信息';
+                console.error('Error fetching IP or location:', error);
+            });
+
+        // 贪吃蛇游戏代码
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const box = 20;
+        let snake = [{ x: 9 * box, y: 9 * box }];
+        let food = { x: Math.floor(Math.random() * 20) * box, y: Math.floor(Math.random() * 20) * box };
+        let score = 0;
+        let d;
+
+        function startSnakeGame() {
+            canvas.style.display = 'block';
+            document.getElementById('pushBoxCanvas').style.display = 'none';
+            document.getElementById('planeCanvas').style.display = 'none';
+            document.getElementById('score').innerText = '分数: 0';
+            score = 0;
+            snake = [{ x: 9 * box, y: 9 * box }];
+            food = { x: Math.floor(Math.random() * 20) * box, y: Math.floor(Math.random() * 20) * box };
+            d = undefined;
+            document.addEventListener('keydown', direction);
+            game = setInterval(draw, 150);
+        }
+
+        function direction(event) {
+            if (event.keyCode == 37 && d != 'RIGHT') {
+                d = 'LEFT';
+            } else if (event.keyCode == 38 && d != 'DOWN') {
+                d = 'UP';
+            } else if (event.keyCode == 39 && d != 'LEFT') {
+                d = 'RIGHT';
+            } else if (event.keyCode == 40 && d != 'UP') {
+                d = 'DOWN';
+            }
+        }
+
+        function collision(head, array) {
+            for (let i = 0; i < array.length; i++) {
+                if (head.x === array[i].x && head.y === array[i].y) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < snake.length; i++) {
+                ctx.fillStyle = (i === 0) ? 'green' : 'lightgreen';
+                ctx.fillRect(snake[i].x, snake[i].y, box, box);
+                ctx.strokeStyle = 'darkgreen';
+                ctx.strokeRect(snake[i].x, snake[i].y, box, box);
+            }
+
+            ctx.fillStyle = 'red';
+            ctx.fillRect(food.x, food.y, box, box);
+
+            let snakeX = snake[0].x;
+            let snakeY = snake[0].y;
+
+            if (d === 'LEFT') snakeX -= box;
+            if (d === 'UP') snakeY -= box;
+            if (d === 'RIGHT') snakeX += box;
+            if (d === 'DOWN') snakeY += box;
+
+            if (snakeX === food.x && snakeY === food.y) {
+                score++;
+                food = { x: Math.floor(Math.random() * 20) * box, y: Math.floor(Math.random() * 20) * box };
+            } else {
+                snake.pop();
+            }
+
+            let newHead = { x: snakeX, y: snakeY };
+
+            if (snakeX < 0 || snakeY < 0 || snakeX >= canvas.width || snakeY >= canvas.height || collision(newHead, snake)) {
+                clearInterval(game);
+                alert('谢子湙真菜！你的分数是: ' + score);
+                document.location.reload();
+            }
+
+            snake.unshift(newHead);
+            document.getElementById('score').innerText = '分数: ' + score;
+        }
+
+        let game = setInterval(draw, 150);
+
+        // 推箱子游戏代码
+        const pushBoxCanvas = document.getElementById('pushBoxCanvas');
+        const pushBoxCtx = pushBoxCanvas.getContext('2d');
+
+        const boxSize = 40;
+        const player = { x: 1, y: 1 };
+        const boxes = [{ x: 3, y: 3 }];
+        const goal = { x: 4, y: 3 };
+        let pushBoxScore = 0;
+
+        function startPushBoxGame() {
+            document.getElementById('pushBoxCanvas').style.display = 'block';
+            canvas.style.display = 'none';
+            document.getElementById('planeCanvas').style.display = 'none';
+            document.getElementById('pushBoxScore').innerText = '推箱子分数: 0';
+            pushBoxScore = 0;
+            player.x = 1;
+            player.y = 1;
+            boxes = [{ x: 3, y: 3 }];
+            goal = { x: 4, y: 3 };
+            drawPushBox();
+        }
+
+        function drawPushBox() {
+            pushBoxCtx.clearRect(0, 0, pushBoxCanvas.width, pushBoxCanvas.height);
+
+            // 绘制目标
+            pushBoxCtx.fillStyle = 'blue';
+            pushBoxCtx.fillRect(goal.x * boxSize, goal.y * boxSize, boxSize, boxSize);
+
+            // 绘制箱子
+            pushBoxCtx.fillStyle = 'brown';
+            for (let box of boxes) {
+                pushBoxCtx.fillRect(box.x * boxSize, box.y * boxSize, boxSize, boxSize);
+            }
+
+            // 绘制玩家
+            pushBoxCtx.fillStyle = 'green';
+            pushBoxCtx.fillRect(player.x * boxSize, player.y * boxSize, boxSize, boxSize);
+        }
+
+        function movePlayer(dx, dy) {
+            const newX = player.x + dx;
+            const newY = player.y + dy;
+
+            // 检查是否碰到箱子
+            for (let box of boxes) {
+                if (box.x === newX && box.y === newY) {
+                    const newBoxX = box.x + dx;
+                    const newBoxY = box.y + dy;
+
+                    // 检查箱子是否可以移动
+                    if (boxes.some(b => b.x === newBoxX && b.y === newBoxY) || (newBoxX === goal.x && newBoxY === goal.y)) {
+                        return; // 箱子不能移动
+                    }
+
+                    // 移动箱子
+                    box.x = newBoxX;
+                    box.y = newBoxY;
+
+                    // 检查是否完成目标
+                    if (box.x === goal.x && box.y === goal.y) {
+                        pushBoxScore++;
+                        document.getElementById('pushBoxScore').innerText = '推箱子分数: ' + pushBoxScore;
+                    }
+                }
+            }
+
+            // 移动玩家
+            player.x = newX;
+            player.y = newY;
+
+            drawPushBox();
+        }
+
+        // 飞机大战游戏代码
+        const planeCanvas = document.getElementById('planeCanvas');
+        const planeCtx = planeCanvas.getContext('2d');
+
+        let plane = { x: 180, y: 350 };
+        let bullets = [];
+        let enemies = [];
+        let enemyInterval;
+        let planeScore = 0;
+
+        function startPlaneGame() {
+            document.getElementById('planeCanvas').style.display = 'block';
+            canvas.style.display = 'none';
+            document.getElementById('pushBoxCanvas').style.display = 'none';
+            document.getElementById('planeScore').innerText = '飞机大战分数: 0';
+            planeScore = 0;
+            bullets = [];
+            enemies = [];
+            plane.x = 180;
+            plane.y = 350;
+            drawPlane();
+            enemyInterval = setInterval(spawnEnemy, 1000);
+        }
+
+        function drawPlane() {
+            planeCtx.clearRect(0, 0, planeCanvas.width, planeCanvas.height);
+            planeCtx.fillStyle = 'yellow';
+            planeCtx.fillRect(plane.x, plane.y, 40, 20); // 绘制飞机
+
+            // 绘制子弹
+            bullets.forEach(bullet => {
+                planeCtx.fillStyle = 'red';
+                planeCtx.fillRect(bullet.x, bullet.y, 5, 10);
+            });
+
+            // 绘制敌人
+            enemies.forEach(enemy => {
+                planeCtx.fillStyle = 'green';
+                planeCtx.fillRect(enemy.x, enemy.y, 40, 20);
+            });
+
+            // 更新子弹位置
+            bullets.forEach(bullet => {
+                bullet.y -= 5; // 子弹向上移动
+            });
+
+            // 检查子弹与敌人的碰撞
+            bullets.forEach((bullet, bulletIndex) => {
+                enemies.forEach((enemy, enemyIndex) => {
+                    if (bullet.x < enemy.x + 40 && bullet.x + 5 > enemy.x && bullet.y < enemy.y + 20 && bullet.y + 10 > enemy.y) {
+                        bullets.splice(bulletIndex, 1);
+                        enemies.splice(enemyIndex, 1);
+                        planeScore++;
+                        document.getElementById('planeScore').innerText = '飞机大战分数: ' + planeScore;
+                    }
+                });
+            });
+
+            // 移除超出画布的子弹
+            bullets = bullets.filter(bullet => bullet.y > 0);
+            enemies = enemies.filter(enemy => enemy.y < planeCanvas.height);
+
+            requestAnimationFrame(drawPlane);
+        }
+
+        function spawnEnemy() {
+            const x = Math.random() * (planeCanvas.width - 40);
+            enemies.push({ x: x, y: 0 });
+        }
+
+        document.getElementById('startGame').addEventListener('click', function() {
+            const selectedGame = document.getElementById('gameSelect').value;
+            if (selectedGame === 'snake') {
+                startSnakeGame();
+            } else if (selectedGame === 'pushBox') {
+                startPushBoxGame();
+            } else {
+                startPlaneGame();
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (canvas.style.display === 'block') {
+                if (event.key === 'ArrowUp') direction(0, -1);
+                if (event.key === 'ArrowDown') direction(0, 1);
+                if (event.key === 'ArrowLeft') direction(-1, 0);
+                if (event.key === 'ArrowRight') direction(1, 0);
+            } else if (pushBoxCanvas.style.display === 'block') {
+                if (event.key === 'ArrowUp') movePlayer(0, -1);
+                if (event.key === 'ArrowDown') movePlayer(0, 1);
+                if (event.key === 'ArrowLeft') movePlayer(-1, 0);
+                if (event.key === 'ArrowRight') movePlayer(1, 0);
+            } else if (planeCanvas.style.display === 'block') {
+                if (event.key === 'ArrowLeft' && plane.x > 0) {
+                    plane.x -= 10; // 左移
+                }
+                if (event.key === 'ArrowRight' && plane.x < planeCanvas.width - 40) {
+                    plane.x += 10; // 右移
+                }
+                if (event.key === ' ') {
+                    bullets.push({ x: plane.x + 17.5, y: plane.y }); // 发射子弹
+                }
+            }
+        });
+
+        drawPushBox();
+    </script>
+</body>
+</html>
